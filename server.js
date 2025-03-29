@@ -90,12 +90,10 @@ app.post("/request-blood", (req, res) => {
   const { blood_type, quantity } = req.body;
 
   if (!blood_type || !quantity) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Blood type and quantity are required.",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Blood type and quantity are required.",
+    });
   }
 
   // Find hospital where blood is available
@@ -147,4 +145,18 @@ app.get("/health", (req, res) => {
 // ✅ Start server
 app.listen(PORT, HOST, () => {
   console.log(`✅ Server running at http://${HOST}:${PORT}`);
+});
+
+// Get available blood types and quantities// Get available blood types and quantities
+app.get("/available-bloods", (req, res) => {
+  db.all(
+    `SELECT blood_type, quantity FROM blood_bank WHERE quantity > 0`,
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ success: false, message: err.message });
+      }
+      res.json({ success: true, data: rows });
+    }
+  );
 });
