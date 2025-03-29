@@ -16,24 +16,6 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
   } else {
     console.log("✅ Connected to SQLite database.");
 
-    // ✅ Create blood_bank table
-    db.run(
-      `CREATE TABLE IF NOT EXISTS blood_bank (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        blood_type TEXT NOT NULL,
-        quantity INTEGER NOT NULL,
-        hospital_id INTEGER,
-        FOREIGN KEY (hospital_id) REFERENCES hospitals(id)
-      )`,
-      (err) => {
-        if (err) {
-          console.error("❌ Error creating blood_bank table:", err.message);
-        } else {
-          console.log("✅ blood_bank table created or already exists");
-        }
-      }
-    );
-
     // ✅ Create hospitals table
     db.run(
       `CREATE TABLE IF NOT EXISTS hospitals (
@@ -49,19 +31,68 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
           console.log("✅ hospitals table created or already exists");
 
           // ✅ Insert sample hospital data
-          db.run(
-            `INSERT OR IGNORE INTO hospitals (id, name, location, map_link) VALUES 
-              (1, 'City Hospital', 'New York, USA', 'https://maps.app.goo.gl/mmw3iWwKJ4jy1wbq5'),
-              (2, 'Sunrise Medical Center', 'Los Angeles, USA', 'https://maps.app.goo.gl/xyz123'),
-              (3, 'Green Valley Hospital', 'San Francisco, USA', 'https://maps.app.goo.gl/abc456')`
-          );
+          const sampleHospitals = [
+            [
+              1,
+              "City Hospital",
+              "New York, USA",
+              "https://maps.app.goo.gl/mmw3iWwKJ4jy1wbq5",
+            ],
+            [
+              2,
+              "Sunrise Medical Center",
+              "Los Angeles, USA",
+              "https://maps.app.goo.gl/xyz123",
+            ],
+            [
+              3,
+              "Green Valley Hospital",
+              "San Francisco, USA",
+              "https://maps.app.goo.gl/abc456",
+            ],
+          ];
+          sampleHospitals.forEach(([id, name, location, map_link]) => {
+            db.run(
+              `INSERT OR IGNORE INTO hospitals (id, name, location, map_link) VALUES (?, ?, ?, ?)`,
+              [id, name, location, map_link]
+            );
+          });
+        }
+      }
+    );
 
-          // ✅ Insert blood bank data connected to hospitals
-          db.run(
-            `INSERT OR IGNORE INTO blood_bank (blood_type, quantity, hospital_id) VALUES 
-              ('A+', 10, 1), ('A-', 8, 1), ('B+', 5, 2), ('B-', 7, 2), 
-              ('O+', 12, 3), ('O-', 6, 3), ('AB+', 4, 1), ('AB-', 3, 2)`
-          );
+    // ✅ Create blood_bank table
+    db.run(
+      `CREATE TABLE IF NOT EXISTS blood_bank (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        blood_type TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        hospital_id INTEGER,
+        FOREIGN KEY (hospital_id) REFERENCES hospitals(id)
+      )`,
+      (err) => {
+        if (err) {
+          console.error("❌ Error creating blood_bank table:", err.message);
+        } else {
+          console.log("✅ blood_bank table created or already exists");
+
+          // ✅ Insert sample blood data connected to hospitals
+          const sampleBloodData = [
+            ["A+", 10, 1],
+            ["A-", 8, 1],
+            ["B+", 5, 2],
+            ["B-", 7, 2],
+            ["O+", 12, 3],
+            ["O-", 6, 3],
+            ["AB+", 4, 1],
+            ["AB-", 3, 2],
+          ];
+          sampleBloodData.forEach(([blood_type, quantity, hospital_id]) => {
+            db.run(
+              `INSERT OR IGNORE INTO blood_bank (blood_type, quantity, hospital_id) VALUES (?, ?, ?)`,
+              [blood_type, quantity, hospital_id]
+            );
+          });
         }
       }
     );
@@ -85,6 +116,20 @@ app.get("/blood-data", (req, res) => {
   );
 });
 
+// ✅ Get available blood types and quantities
+app.get("/available-bloods", (req, res) => {
+  db.all(
+    `SELECT blood_type, quantity FROM blood_bank WHERE quantity > 0`,
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ success: false, message: err.message });
+      }
+      res.json({ success: true, data: rows });
+    }
+  );
+});
+
 // ✅ Request blood (decrement quantity and return hospital info)
 app.post("/request-blood", (req, res) => {
   const { blood_type, quantity } = req.body;
@@ -96,9 +141,9 @@ app.post("/request-blood", (req, res) => {
     });
   }
 
-  // Find hospital where blood is available
+  // ✅ Find the hospital with available blood
   const query = `
-    SELECT b.quantity, h.name as hospital_name, h.location, h.map_link 
+    SELECT b.id, b.quantity, b.hospital_id, h.name as hospital_name, h.location, h.map_link
     FROM blood_bank b
     JOIN hospitals h ON b.hospital_id = h.id
     WHERE b.blood_type = ? AND b.quantity >= ?
@@ -117,8 +162,8 @@ app.post("/request-blood", (req, res) => {
     }
 
     // ✅ Reduce quantity after confirming availability
-    const updateQuery = `UPDATE blood_bank SET quantity = quantity - ? WHERE blood_type = ?`;
-    db.run(updateQuery, [quantity, blood_type], function (err) {
+    const updateQuery = `UPDATE blood_bank SET quantity = quantity - ? WHERE id = ?`;
+    db.run(updateQuery, [quantity, row.id], function (err) {
       if (err) {
         return res.status(500).json({ success: false, message: err.message });
       }
@@ -145,18 +190,4 @@ app.get("/health", (req, res) => {
 // ✅ Start server
 app.listen(PORT, HOST, () => {
   console.log(`✅ Server running at http://${HOST}:${PORT}`);
-});
-
-// Get available blood types and quantities// Get available blood types and quantities
-app.get("/available-bloods", (req, res) => {
-  db.all(
-    `SELECT blood_type, quantity FROM blood_bank WHERE quantity > 0`,
-    [],
-    (err, rows) => {
-      if (err) {
-        return res.status(500).json({ success: false, message: err.message });
-      }
-      res.json({ success: true, data: rows });
-    }
-  );
 });
