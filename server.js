@@ -76,10 +76,11 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
                             console.log("✅ blood_bank table created");
 
                             // ✅ Insert sample blood bank data
+                            // ✅ Insert sample blood bank data (updated to 100 units)
                             db.run(
-                              `INSERT OR IGNORE INTO blood_bank (blood_type, quantity, hospital_id) VALUES 
-                                ('A+', 10, 1), ('A-', 8, 1), ('B+', 5, 2), ('B-', 7, 2), 
-                                ('O+', 12, 3), ('O-', 6, 3), ('AB+', 4, 1), ('AB-', 3, 2)`,
+                              `INSERT OR REPLACE INTO blood_bank (blood_type, quantity, hospital_id) VALUES 
+    ('A+', 100, 1), ('A-', 100, 1), ('B+', 100, 2), ('B-', 100, 2), 
+    ('O+', 100, 3), ('O-', 100, 3), ('AB+', 100, 1), ('AB-', 100, 2)`,
                               (err) => {
                                 if (err) {
                                   console.error(
@@ -87,7 +88,9 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
                                     err.message
                                   );
                                 } else {
-                                  console.log("✅ Sample blood data inserted");
+                                  console.log(
+                                    "✅ Updated sample blood data to 100 units"
+                                  );
                                 }
                               }
                             );
