@@ -13,7 +13,7 @@ app.use(express.json());
 // CORS Configuration
 const corsOptions = {
   origin: "*", // Temporarily set to "*" for debugging
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type"],
 };
 
@@ -90,31 +90,6 @@ app.post("/add-hospital", (req, res) => {
   });
 });
 
-// ✅ API to Add Blood Stock for a Hospital
-app.post("/add-blood", (req, res) => {
-  const { blood_type, quantity, hospital_id } = req.body;
-
-  if (!blood_type || !quantity || !hospital_id) {
-    return res
-      .status(400)
-      .json({ success: false, message: "All fields are required." });
-  }
-
-  const query = db.prepare(
-    `INSERT INTO blood_bank (blood_type, quantity, hospital_id) VALUES (?, ?, ?)`
-  );
-  try {
-    const result = query.run(blood_type, quantity, hospital_id);
-    res.json({
-      success: true,
-      message: "Blood added successfully.",
-      id: result.lastInsertRowid,
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
 // ✅ Get Available Blood Data (With Hospital Details)
 app.get("/blood-data", (req, res) => {
   db.all(
@@ -163,41 +138,28 @@ app.post("/request-blood", (req, res) => {
     }
 
     // ✅ Reduce quantity after confirming availability
-    const updateQuery = `UPDATE blood_bank SET quantity = quantity - ? WHERE blood_type = ?`;
-    db.run(updateQuery, [quantity, blood_type], function (err) {
-      if (err) {
-        return res.status(500).json({ success: false, message: err.message });
-      }
+    const updateQuery = `UPDATE blood_bank SET quantity = quantity - ? WHERE blood_type = ? AND hospital_id = ?`;
+    db.run(
+      updateQuery,
+      [quantity, blood_type, row.hospital_id],
+      function (err) {
+        if (err) {
+          return res.status(500).json({ success: false, message: err.message });
+        }
 
-      // ✅ Return hospital details
-      res.json({
-        success: true,
-        message: "Blood request processed.",
-        hospital: {
-          name: row.hospital_name,
-          location: row.location,
-          map_link: row.map_link,
-        },
-      });
-    });
+        // ✅ Return hospital details
+        res.json({
+          success: true,
+          message: "Blood request processed.",
+          hospital: {
+            name: row.hospital_name,
+            location: row.location,
+            map_link: row.map_link,
+          },
+        });
+      }
+    );
   });
-});
-
-// ✅ Get Available Blood Types, Quantities, and Hospital Details
-app.get("/available-bloods", (req, res) => {
-  db.all(
-    `SELECT b.blood_type, b.quantity, h.id as hospital_id, h.name AS hospital_name, h.location, h.map_link
-     FROM blood_bank b
-     JOIN hospitals h ON b.hospital_id = h.id
-     WHERE b.quantity > 0`,
-    [],
-    (err, rows) => {
-      if (err) {
-        return res.status(500).json({ success: false, message: err.message });
-      }
-      res.json({ success: true, data: rows });
-    }
-  );
 });
 
 // ✅ Health Check Route

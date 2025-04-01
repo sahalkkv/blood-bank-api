@@ -23,10 +23,11 @@ db.serialize(() => {
     FOREIGN KEY(hospital_id) REFERENCES hospitals(id)
   )`);
 
-  // Insert sample data
+  // Insert sample data into hospitals
   db.run(`INSERT INTO hospitals (name, location, map_link) VALUES 
     ('AMRITHA HOSPITAL', 'ERNAKULAM', 'https://maps.app.goo.gl/4Ut4V5KENGzu6PFYA')`);
 
+  // Insert sample data into blood_bank
   db.run(`INSERT INTO blood_bank (hospital_id, blood_type, quantity) VALUES 
     (1, 'A+', 10),
     (1, 'A-', 8),
@@ -35,6 +36,14 @@ db.serialize(() => {
     (1, 'O+', 15),
     (1, 'O-', 6),
     (1, 'AB+', 7),
-    (1, 'AB-', 3)
-  `);
+    (1, 'AB-', 3)`);
+
+  // Close the database connection
+  db.close((err) => {
+    if (err) {
+      console.error("Error closing the database:", err.message);
+    } else {
+      console.log("Database connection closed");
+    }
+  });
 });
