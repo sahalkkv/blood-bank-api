@@ -10,6 +10,7 @@ const HOST = "0.0.0.0";
 // Middleware to parse JSON bodies
 app.use(express.json());
 
+// CORS configuration
 const corsOptions = {
   origin: "http://localhost:3000", // Allow requests from localhost
   methods: ["GET", "POST", "PUT", "DELETE"],
@@ -46,7 +47,7 @@ db.serialize(() => {
     FOREIGN KEY(hospital_id) REFERENCES hospitals(id)
   )`);
 
-  // Insert sample data
+  // Insert sample data (You can remove this in production or replace with real data)
   db.run(`INSERT INTO hospitals (name, location, map_link) VALUES 
     ('AMRITHA HOSPITAL', 'ERNAKULAM', 'https://maps.app.goo.gl/4Ut4V5KENGzu6PFYA')`);
 
@@ -62,6 +63,8 @@ db.serialize(() => {
 });
 
 // APIs
+
+// Add Hospital and Blood Data
 app.post("/add-hospital", (req, res) => {
   const { name, location, map_link, bloodData } = req.body;
   if (!name || !location || !map_link || !bloodData || bloodData.length === 0) {
@@ -104,9 +107,30 @@ app.post("/add-hospital", (req, res) => {
   });
 });
 
+// Get Available Blood Data (Fix the 404 error by implementing this route)
+app.get("/available-bloods", (req, res) => {
+  db.all(
+    `SELECT b.blood_type, b.quantity, h.name AS hospital_name, h.location, h.map_link
+    FROM blood_bank b
+    JOIN hospitals h ON b.hospital_id = h.id`,
+    [],
+    (err, rows) => {
+      if (err)
+        return res.status(500).json({ success: false, message: err.message });
+      if (rows.length === 0) {
+        return res
+          .status(404)
+          .json({ success: false, message: "No blood data available." });
+      }
+      res.json({ success: true, data: rows });
+    }
+  );
+});
+
+// Get All Blood Data
 app.get("/blood-data", (req, res) => {
   db.all(
-    `SELECT b.blood_type, b.quantity, h.name as hospital_name, h.location, h.map_link
+    `SELECT b.blood_type, b.quantity, h.name AS hospital_name, h.location, h.map_link
     FROM blood_bank b
     JOIN hospitals h ON b.hospital_id = h.id`,
     [],
@@ -118,6 +142,7 @@ app.get("/blood-data", (req, res) => {
   );
 });
 
+// Start Server
 app.listen(PORT, HOST, () => {
   console.log(`Server running at http://${HOST}:${PORT}`);
 });
