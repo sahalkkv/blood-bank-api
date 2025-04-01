@@ -1,28 +1,30 @@
 db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS blood_bank (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        blood_type TEXT,
-        quantity INTEGER
-    )`);
-
-  // Insert sample data
-  db.run(`INSERT INTO blood_bank (blood_type, quantity) VALUES 
-        ('A+', 10),
-        ('A-', 8),
-        ('B+', 12),
-        ('B-', 5),
-        ('O+', 15),
-        ('O-', 6),
-        ('AB+', 7),
-        ('AB-', 3)
-    `);
-});
-
-db.prepare(
-  `CREATE TABLE IF NOT EXISTS hospitals (
+  // Create the hospitals table first
+  db.run(`CREATE TABLE IF NOT EXISTS hospitals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     location TEXT NOT NULL,
     map_link TEXT NOT NULL
-)`
-).run();
+  )`);
+
+  // Modify the blood_bank table to include hospital_id
+  db.run(`CREATE TABLE IF NOT EXISTS blood_bank (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hospital_id INTEGER,
+    blood_type TEXT,
+    quantity INTEGER,
+    FOREIGN KEY(hospital_id) REFERENCES hospitals(id)
+  )`);
+
+  // Insert sample blood bank data with hospital_id
+  db.run(`INSERT INTO blood_bank (hospital_id, blood_type, quantity) VALUES 
+    (1, 'A+', 10),
+    (1, 'A-', 8),
+    (1, 'B+', 12),
+    (1, 'B-', 5),
+    (1, 'O+', 15),
+    (1, 'O-', 6),
+    (1, 'AB+', 7),
+    (1, 'AB-', 3)
+  `);
+});
