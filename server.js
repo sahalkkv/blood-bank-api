@@ -10,34 +10,25 @@ const HOST = "0.0.0.0";
 app.use(express.json());
 app.use(cors());
 
-// ✅ Connect to SQLite
-db = new sqlite3.Database("./blood_bank.db", (err) => {
-  if (err) {
-    console.error("❌ Error connecting to database:", err.message);
-  } else {
-    console.log("✅ Connected to SQLite database.");
+// ✅ Create Tables if they don't exist
+db.exec(`
+  CREATE TABLE IF NOT EXISTS hospitals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    location TEXT NOT NULL,
+    map_link TEXT NOT NULL
+  );
 
-    // ✅ Create Tables
-    db.serialize(() => {
-      db.run(`CREATE TABLE IF NOT EXISTS hospitals (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          location TEXT NOT NULL,
-          map_link TEXT NOT NULL
-        )`);
+  CREATE TABLE IF NOT EXISTS blood_bank (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    blood_type TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    hospital_id INTEGER,
+    FOREIGN KEY (hospital_id) REFERENCES hospitals(id)
+  );
+`);
 
-      db.run(`CREATE TABLE IF NOT EXISTS blood_bank (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          blood_type TEXT NOT NULL,
-          quantity INTEGER NOT NULL,
-          hospital_id INTEGER,
-          FOREIGN KEY (hospital_id) REFERENCES hospitals(id)
-        )`);
-
-      console.log("✅ Database tables are ready.");
-    });
-  }
-});
+console.log("✅ Database tables are ready.");
 
 // ✅ API to Register a New Hospital
 app.post("/add-hospital", (req, res) => {
@@ -48,17 +39,19 @@ app.post("/add-hospital", (req, res) => {
       .json({ success: false, message: "All fields are required." });
   }
 
-  const query = `INSERT INTO hospitals (name, location, map_link) VALUES (?, ?, ?)`;
-  db.run(query, [name, location, map_link], function (err) {
-    if (err) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
+  const query = db.prepare(
+    `INSERT INTO hospitals (name, location, map_link) VALUES (?, ?, ?)`
+  );
+  try {
+    const result = query.run(name, location, map_link);
     res.json({
       success: true,
       message: "Hospital added successfully.",
-      id: this.lastID,
+      id: result.lastInsertRowid,
     });
-  });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // ✅ API to Add Blood Stock for a Hospital
@@ -71,17 +64,19 @@ app.post("/add-blood", (req, res) => {
       .json({ success: false, message: "All fields are required." });
   }
 
-  const query = `INSERT INTO blood_bank (blood_type, quantity, hospital_id) VALUES (?, ?, ?)`;
-  db.run(query, [blood_type, quantity, hospital_id], function (err) {
-    if (err) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
+  const query = db.prepare(
+    `INSERT INTO blood_bank (blood_type, quantity, hospital_id) VALUES (?, ?, ?)`
+  );
+  try {
+    const result = query.run(blood_type, quantity, hospital_id);
     res.json({
       success: true,
       message: "Blood added successfully.",
-      id: this.lastID,
+      id: result.lastInsertRowid,
     });
-  });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // ✅ Get Available Blood Data (With Hospital Details)
@@ -117,8 +112,7 @@ app.post("/request-blood", (req, res) => {
     SELECT b.quantity, h.name as hospital_name, h.location, h.map_link 
     FROM blood_bank b
     JOIN hospitals h ON b.hospital_id = h.id
-    WHERE b.blood_type = ? AND b.quantity >= ?
-    LIMIT 1
+    WHERE b.blood_type = ? AND b.quantity >= ? LIMIT 1
   `;
 
   db.get(query, [blood_type, quantity], (err, row) => {
