@@ -1,7 +1,8 @@
 const express = require("express");
 const cors = require("cors");
-const Database = require("better-sqlite3");
-const db = new Database("./blood_bank.db");
+
+const sqlite3 = require("sqlite3").verbose();
+const db = new sqlite3.Database("./blood_bank.db");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
