@@ -10,15 +10,13 @@ const HOST = "0.0.0.0";
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// CORS Configuration
 const corsOptions = {
-  origin: "*",
+  origin: "http://localhost:3000", // Allow requests from localhost
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type"],
 };
 
-// Enable CORS with the configured options
-app.use(cors(corsOptions));
+app.use(cors(corsOptions)); // Use the above CORS configuration
 
 // Handle preflight OPTIONS requests
 app.options("*", cors(corsOptions));
