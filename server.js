@@ -4,7 +4,7 @@ const sqlite3 = require("sqlite3").verbose();
 const db = new sqlite3.Database("./blood_bank.db");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 const HOST = "0.0.0.0";
 
 // Middleware to parse JSON bodies
