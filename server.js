@@ -12,8 +12,8 @@ app.use(express.json());
 
 // CORS Configuration
 const corsOptions = {
-  origin: "*", // Temporarily set to "*" for debugging
-  methods: ["GET", "POST"],
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type"],
 };
 
@@ -23,30 +23,49 @@ app.use(cors(corsOptions));
 // Handle preflight OPTIONS requests
 app.options("*", cors(corsOptions));
 
-// ✅ Create Tables if they don't exist
-db.exec(`
-  CREATE TABLE IF NOT EXISTS hospitals (
+// Database Initialization
+db.serialize(() => {
+  db.run("PRAGMA foreign_keys = ON;");
+
+  // Drop existing tables if they exist
+  db.run("DROP TABLE IF EXISTS blood_bank;");
+  db.run("DROP TABLE IF EXISTS hospitals;");
+
+  // Create hospitals table
+  db.run(`CREATE TABLE IF NOT EXISTS hospitals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     location TEXT NOT NULL,
     map_link TEXT NOT NULL
-  );
+  )`);
 
-  CREATE TABLE IF NOT EXISTS blood_bank (
+  // Create blood_bank table with hospital_id
+  db.run(`CREATE TABLE IF NOT EXISTS blood_bank (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    blood_type TEXT NOT NULL,
-    quantity INTEGER NOT NULL,
     hospital_id INTEGER,
-    FOREIGN KEY (hospital_id) REFERENCES hospitals(id)
-  );
-`);
+    blood_type TEXT,
+    quantity INTEGER,
+    FOREIGN KEY(hospital_id) REFERENCES hospitals(id)
+  )`);
 
-console.log("✅ Database tables are ready.");
+  // Insert sample data
+  db.run(`INSERT INTO hospitals (name, location, map_link) VALUES 
+    ('AMRITHA HOSPITAL', 'ERNAKULAM', 'https://maps.app.goo.gl/4Ut4V5KENGzu6PFYA')`);
 
-// ✅ API to Register a New Hospital
+  db.run(`INSERT INTO blood_bank (hospital_id, blood_type, quantity) VALUES 
+    (1, 'A+', 10),
+    (1, 'A-', 8),
+    (1, 'B+', 12),
+    (1, 'B-', 5),
+    (1, 'O+', 15),
+    (1, 'O-', 6),
+    (1, 'AB+', 7),
+    (1, 'AB-', 3)`);
+});
+
+// APIs
 app.post("/add-hospital", (req, res) => {
   const { name, location, map_link, bloodData } = req.body;
-
   if (!name || !location || !map_link || !bloodData || bloodData.length === 0) {
     return res
       .status(400)
@@ -58,11 +77,9 @@ app.post("/add-hospital", (req, res) => {
     `INSERT INTO hospitals (name, location, map_link) VALUES (?, ?, ?)`
   );
   db.run(query, [name, location, map_link], function (err) {
-    if (err) {
+    if (err)
       return res.status(500).json({ success: false, message: err.message });
-    }
-
-    const hospital_id = this.lastID; // Get the ID of the newly inserted hospital
+    const hospital_id = this.lastID;
 
     // Insert blood data
     const bloodQuery = db.prepare(
@@ -73,11 +90,10 @@ app.post("/add-hospital", (req, res) => {
         bloodQuery,
         [data.blood_type, data.quantity, hospital_id],
         (err) => {
-          if (err) {
+          if (err)
             return res
               .status(500)
               .json({ success: false, message: err.message });
-          }
         }
       );
     });
@@ -90,84 +106,20 @@ app.post("/add-hospital", (req, res) => {
   });
 });
 
-// ✅ Get Available Blood Data (With Hospital Details)
 app.get("/blood-data", (req, res) => {
   db.all(
-    `SELECT b.blood_type, b.quantity, h.name as hospital_name, h.location, h.map_link 
-     FROM blood_bank b
-     JOIN hospitals h ON b.hospital_id = h.id`,
+    `SELECT b.blood_type, b.quantity, h.name as hospital_name, h.location, h.map_link
+    FROM blood_bank b
+    JOIN hospitals h ON b.hospital_id = h.id`,
     [],
     (err, rows) => {
-      if (err) {
-        res.status(500).json({ success: false, message: err.message });
-      } else {
-        res.json({ success: true, data: rows });
-      }
+      if (err)
+        return res.status(500).json({ success: false, message: err.message });
+      res.json({ success: true, data: rows });
     }
   );
 });
 
-// ✅ Request Blood (Decrease Quantity and Return Hospital Info)
-app.post("/request-blood", (req, res) => {
-  const { blood_type, quantity } = req.body;
-
-  if (!blood_type || !quantity) {
-    return res.status(400).json({
-      success: false,
-      message: "Blood type and quantity are required.",
-    });
-  }
-
-  // Find hospital where blood is available
-  const query = `
-    SELECT b.quantity, h.name as hospital_name, h.location, h.map_link 
-    FROM blood_bank b
-    JOIN hospitals h ON b.hospital_id = h.id
-    WHERE b.blood_type = ? AND b.quantity >= ? LIMIT 1
-  `;
-
-  db.get(query, [blood_type, quantity], (err, row) => {
-    if (err) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
-
-    if (!row) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Not enough stock available." });
-    }
-
-    // ✅ Reduce quantity after confirming availability
-    const updateQuery = `UPDATE blood_bank SET quantity = quantity - ? WHERE blood_type = ? AND hospital_id = ?`;
-    db.run(
-      updateQuery,
-      [quantity, blood_type, row.hospital_id],
-      function (err) {
-        if (err) {
-          return res.status(500).json({ success: false, message: err.message });
-        }
-
-        // ✅ Return hospital details
-        res.json({
-          success: true,
-          message: "Blood request processed.",
-          hospital: {
-            name: row.hospital_name,
-            location: row.location,
-            map_link: row.map_link,
-          },
-        });
-      }
-    );
-  });
-});
-
-// ✅ Health Check Route
-app.get("/health", (req, res) => {
-  res.status(200).send("Server is healthy");
-});
-
-// ✅ Start Server
 app.listen(PORT, HOST, () => {
-  console.log(`✅ Server running at http://${HOST}:${PORT}`);
+  console.log(`Server running at http://${HOST}:${PORT}`);
 });
