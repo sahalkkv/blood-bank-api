@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
-const sqlite3 = require("sqlite3").verbose();
+const Database = require("better-sqlite3");
+const db = new Database("./blood_bank.db");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,7 +11,7 @@ app.use(express.json());
 app.use(cors());
 
 // ✅ Connect to SQLite
-const db = new sqlite3.Database("./blood_bank.db", (err) => {
+db = new sqlite3.Database("./blood_bank.db", (err) => {
   if (err) {
     console.error("❌ Error connecting to database:", err.message);
   } else {

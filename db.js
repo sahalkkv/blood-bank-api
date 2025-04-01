@@ -17,4 +17,12 @@ db.serialize(() => {
         ('AB-', 3)
     `);
 });
-    
+
+db.prepare(
+  `CREATE TABLE IF NOT EXISTS hospitals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    location TEXT NOT NULL,
+    map_link TEXT NOT NULL
+)`
+).run();
