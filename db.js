@@ -1,5 +1,12 @@
 db.serialize(() => {
-  // Create the hospitals table first
+  // Enable foreign key constraints
+  db.run("PRAGMA foreign_keys = ON;");
+
+  // Drop existing tables if they exist
+  db.run("DROP TABLE IF EXISTS blood_bank;");
+  db.run("DROP TABLE IF EXISTS hospitals;");
+
+  // Create hospitals table
   db.run(`CREATE TABLE IF NOT EXISTS hospitals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -7,7 +14,7 @@ db.serialize(() => {
     map_link TEXT NOT NULL
   )`);
 
-  // Modify the blood_bank table to include hospital_id
+  // Create blood_bank table with hospital_id
   db.run(`CREATE TABLE IF NOT EXISTS blood_bank (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     hospital_id INTEGER,
@@ -16,7 +23,10 @@ db.serialize(() => {
     FOREIGN KEY(hospital_id) REFERENCES hospitals(id)
   )`);
 
-  // Insert sample blood bank data with hospital_id
+  // Insert sample data
+  db.run(`INSERT INTO hospitals (name, location, map_link) VALUES 
+    ('AMRITHA HOSPITAL', 'ERNAKULAM', 'https://maps.app.goo.gl/4Ut4V5KENGzu6PFYA')`);
+
   db.run(`INSERT INTO blood_bank (hospital_id, blood_type, quantity) VALUES 
     (1, 'A+', 10),
     (1, 'A-', 8),
