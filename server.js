@@ -16,8 +16,11 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
   } else {
     console.log("✅ Connected to SQLite database.");
 
-    // ✅ Drop existing tables (if needed)
     db.serialize(() => {
+      // ✅ Enable Foreign Key Constraints
+      db.run("PRAGMA foreign_keys = ON");
+
+      // ✅ Drop existing tables (if needed)
       db.run(`DROP TABLE IF EXISTS blood_bank`);
       db.run(`DROP TABLE IF EXISTS hospitals`, (err) => {
         if (err) {
@@ -57,14 +60,14 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
                     } else {
                       console.log("✅ Sample hospital data inserted");
 
-                      // ✅ Create blood_bank table with hospital_id
+                      // ✅ Create blood_bank table with ON DELETE CASCADE
                       db.run(
                         `CREATE TABLE IF NOT EXISTS blood_bank (
                           id INTEGER PRIMARY KEY AUTOINCREMENT,
                           blood_type TEXT NOT NULL,
                           quantity INTEGER NOT NULL,
-                          hospital_id INTEGER,
-                          FOREIGN KEY (hospital_id) REFERENCES hospitals(id)
+                          hospital_id INTEGER NOT NULL,
+                          FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
                         )`,
                         (err) => {
                           if (err) {
@@ -76,7 +79,6 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
                             console.log("✅ blood_bank table created");
 
                             // ✅ Insert sample blood bank data
-                            // ✅ Insert sample blood bank data (updated to 100 units)
                             db.run(
                               `INSERT OR REPLACE INTO blood_bank (blood_type, quantity, hospital_id) VALUES 
     ('A+', 100, 1), ('A-', 100, 1), ('B+', 100, 2), ('B-', 100, 2), 
@@ -109,6 +111,62 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
   }
 });
 
+// ✅ Add new hospital
+app.post("/add-hospital", (req, res) => {
+  const { name, location, map_link } = req.body;
+  if (!name || !location || !map_link) {
+    return res
+      .status(400)
+      .json({ success: false, message: "All fields are required." });
+  }
+
+  const insertQuery = `INSERT INTO hospitals (name, location, map_link) VALUES (?, ?, ?)`;
+  db.run(insertQuery, [name, location, map_link], function (err) {
+    if (err) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+    res.json({
+      success: true,
+      message: "Hospital added successfully",
+      hospital_id: this.lastID,
+    });
+  });
+});
+
+// ✅ Add new blood stock
+app.post("/add-blood", (req, res) => {
+  const { blood_type, quantity, hospital_id } = req.body;
+  if (!blood_type || !quantity || !hospital_id) {
+    return res
+      .status(400)
+      .json({ success: false, message: "All fields are required." });
+  }
+
+  // Check if hospital exists
+  db.get("SELECT id FROM hospitals WHERE id = ?", [hospital_id], (err, row) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+    if (!row) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid hospital ID." });
+    }
+
+    const insertQuery = `INSERT INTO blood_bank (blood_type, quantity, hospital_id) VALUES (?, ?, ?)`;
+    db.run(insertQuery, [blood_type, quantity, hospital_id], function (err) {
+      if (err) {
+        return res.status(500).json({ success: false, message: err.message });
+      }
+      res.json({
+        success: true,
+        message: "Blood stock added successfully",
+        blood_id: this.lastID,
+      });
+    });
+  });
+});
+
 // ✅ Get available blood data (with hospital details)
 app.get("/blood-data", (req, res) => {
   db.all(
@@ -129,7 +187,6 @@ app.get("/blood-data", (req, res) => {
 // ✅ Request blood (decrement quantity and return hospital info)
 app.post("/request-blood", (req, res) => {
   const { blood_type, quantity } = req.body;
-
   if (!blood_type || !quantity) {
     return res.status(400).json({
       success: false,
@@ -137,7 +194,6 @@ app.post("/request-blood", (req, res) => {
     });
   }
 
-  // Find hospital where blood is available
   const query = `
     SELECT b.quantity, h.name as hospital_name, h.location, h.map_link 
     FROM blood_bank b
@@ -150,54 +206,33 @@ app.post("/request-blood", (req, res) => {
     if (err) {
       return res.status(500).json({ success: false, message: err.message });
     }
-
     if (!row) {
       return res
         .status(400)
         .json({ success: false, message: "Not enough stock available." });
     }
 
-    // ✅ Reduce quantity after confirming availability
-    const updateQuery = `UPDATE blood_bank SET quantity = quantity - ? WHERE blood_type = ?`;
-    db.run(updateQuery, [quantity, blood_type], function (err) {
-      if (err) {
-        return res.status(500).json({ success: false, message: err.message });
+    db.run(
+      `UPDATE blood_bank SET quantity = quantity - ? WHERE blood_type = ?`,
+      [quantity, blood_type],
+      function (err) {
+        if (err) {
+          return res.status(500).json({ success: false, message: err.message });
+        }
+        res.json({
+          success: true,
+          message: "Blood request processed.",
+          hospital: row,
+        });
       }
-
-      // ✅ Return hospital details
-      res.json({
-        success: true,
-        message: "Blood request processed.",
-        hospital: {
-          name: row.hospital_name,
-          location: row.location,
-          map_link: row.map_link,
-        },
-      });
-    });
+    );
   });
 });
 
-// ✅ Get available blood types and quantities
-app.get("/available-bloods", (req, res) => {
-  db.all(
-    `SELECT blood_type, quantity FROM blood_bank WHERE quantity > 0`,
-    [],
-    (err, rows) => {
-      if (err) {
-        return res.status(500).json({ success: false, message: err.message });
-      }
-      res.json({ success: true, data: rows });
-    }
-  );
-});
-
-// ✅ Health check route (important for Render)
-app.get("/health", (req, res) => {
-  res.status(200).send("Server is healthy");
-});
+// ✅ Health check
+app.get("/health", (req, res) => res.status(200).send("Server is healthy"));
 
 // ✅ Start server
-app.listen(PORT, HOST, () => {
-  console.log(`✅ Server running at http://${HOST}:${PORT}`);
-});
+app.listen(PORT, HOST, () =>
+  console.log(`✅ Server running at http://${HOST}:${PORT}`)
+);
