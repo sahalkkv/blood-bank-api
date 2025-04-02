@@ -119,6 +119,26 @@ app.post("/register-hospital", (req, res) => {
   );
 });
 
+// ✅ API to get available blood types
+app.get("/available-bloods", (req, res) => {
+  const query = `
+    SELECT bt.type, bt.quantity, h.name AS hospital_name, h.city, h.state, h.country
+    FROM blood_types bt
+    JOIN hospitals h ON bt.hospital_id = h.id
+  `;
+
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+
+    res.json({
+      success: true,
+      data: rows,
+    });
+  });
+});
+
 // ✅ Start server
 app.listen(PORT, HOST, () => {
   console.log(`✅ Server running at http://${HOST}:${PORT}`);
