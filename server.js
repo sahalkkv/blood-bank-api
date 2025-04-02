@@ -27,7 +27,7 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
         country TEXT NOT NULL,
         latitude TEXT,
         longitude TEXT,
-        map_link TEXT NOT NULL
+        map_link TEXT
       )`,
       (err) => {
         if (err) {
@@ -72,7 +72,7 @@ app.post("/register-hospital", (req, res) => {
     bloodTypes,
   } = req.body;
 
-  if (!name || !address || !city || !state || !country || !map_link) {
+  if (!name || !address || !city || !state || !country) {
     return res.status(400).json({
       success: false,
       message: "All required fields must be provided.",
@@ -82,7 +82,16 @@ app.post("/register-hospital", (req, res) => {
   const query = `INSERT INTO hospitals (name, address, city, state, country, latitude, longitude, map_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
   db.run(
     query,
-    [name, address, city, state, country, latitude, longitude, map_link],
+    [
+      name,
+      address,
+      city,
+      state,
+      country,
+      latitude || null,
+      longitude || null,
+      map_link || null,
+    ],
     function (err) {
       if (err) {
         return res.status(500).json({ success: false, message: err.message });
@@ -90,7 +99,7 @@ app.post("/register-hospital", (req, res) => {
 
       const hospital_id = this.lastID;
 
-      if (bloodTypes && Array.isArray(bloodTypes)) {
+      if (bloodTypes && Array.isArray(bloodTypes) && bloodTypes.length > 0) {
         const insertBloodType = `INSERT INTO blood_types (hospital_id, type, quantity) VALUES (?, ?, ?)`;
         bloodTypes.forEach(({ type, quantity }) => {
           db.run(insertBloodType, [hospital_id, type, quantity], (err) => {
