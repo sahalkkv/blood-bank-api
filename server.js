@@ -60,7 +60,8 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
         latitude TEXT,
         longitude TEXT,
         map_link TEXT,
-        image TEXT
+        image TEXT,
+        department TEXT
       )`);
 
       db.run(`CREATE TABLE IF NOT EXISTS blood_types (
@@ -84,19 +85,28 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
 });
 
 app.post("/register-hospital", upload.single("image"), (req, res) => {
-  const { name, address, city, state, country, latitude, longitude, map_link } =
-    req.body;
+  const {
+    name,
+    address,
+    city,
+    state,
+    country,
+    latitude,
+    longitude,
+    map_link,
+    department,
+  } = req.body;
   const bloodTypes = req.body.bloodTypes || "[]";
   const image = req.file ? req.file.path : null;
 
-  if (!name || !address || !city || !state || !country) {
+  if (!name || !address || !city || !state || !country || !department) {
     return res.status(400).json({
       success: false,
       message: "All required fields must be provided.",
     });
   }
 
-  const query = `INSERT INTO hospitals (name, address, city, state, country, latitude, longitude, map_link, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  const query = `INSERT INTO hospitals (name, address, city, state, country, latitude, longitude, map_link, image, department) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   db.run(
     query,
     [
@@ -109,6 +119,7 @@ app.post("/register-hospital", upload.single("image"), (req, res) => {
       longitude || null,
       map_link || null,
       image,
+      department,
     ],
     function (err) {
       if (err) {
@@ -144,8 +155,7 @@ app.post("/register-hospital", upload.single("image"), (req, res) => {
 });
 
 app.get("/available-bloods", (req, res) => {
-  const query = `SELECT bt.type, bt.quantity, h.id AS hospital_id, h.name AS hospital_name, h.city, h.state, h.country, h.image, h.map_link FROM blood_types bt JOIN hospitals h ON bt.hospital_id = h.id`;
-
+  const query = `SELECT bt.type, bt.quantity, h.name AS hospital_name, h.city, h.state, h.country, h.image, h.department FROM blood_types bt JOIN hospitals h ON bt.hospital_id = h.id`;
   db.all(query, [], (err, rows) => {
     if (err) {
       return res.status(500).json({ success: false, message: err.message });
@@ -184,7 +194,6 @@ app.post("/request-blood", (req, res) => {
       .json({ success: false, message: "Missing required fields." });
   }
 
-  // Check available quantity first
   const checkQuery = `SELECT quantity FROM blood_types WHERE hospital_id = ? AND type = ?`;
   db.get(checkQuery, [hospital_id, blood_type], (err, row) => {
     if (err) {
@@ -196,7 +205,6 @@ app.post("/request-blood", (req, res) => {
         .json({ success: false, message: "Not enough blood units available." });
     }
 
-    // Proceed with request and update
     const insertRequest = `INSERT INTO blood_requests (hospital_id, blood_type, quantity) VALUES (?, ?, ?)`;
     db.run(insertRequest, [hospital_id, blood_type, quantity], function (err) {
       if (err) {
