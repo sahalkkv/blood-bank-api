@@ -1,13 +1,32 @@
 const express = require("express");
 const cors = require("cors");
 const sqlite3 = require("sqlite3").verbose();
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = "0.0.0.0";
 
-app.use(express.json());
 app.use(cors());
+app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// ✅ Setup multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = "uploads";
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir);
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+const upload = multer({ storage });
 
 // ✅ Connect to SQLite
 const db = new sqlite3.Database("./blood_bank.db", (err) => {
@@ -16,7 +35,6 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
   } else {
     console.log("✅ Connected to SQLite database.");
 
-    // ✅ Create hospitals table
     db.run(
       `CREATE TABLE IF NOT EXISTS hospitals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,7 +45,8 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
         country TEXT NOT NULL,
         latitude TEXT,
         longitude TEXT,
-        map_link TEXT
+        map_link TEXT,
+        image TEXT
       )`,
       (err) => {
         if (err) {
@@ -38,7 +57,6 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
       }
     );
 
-    // ✅ Create blood types table
     db.run(
       `CREATE TABLE IF NOT EXISTS blood_types (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +77,7 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
 });
 
 // ✅ API to register a new hospital
-app.post("/register-hospital", (req, res) => {
+app.post("/register-hospital", upload.single("image"), (req, res) => {
   const {
     name,
     address,
@@ -71,6 +89,7 @@ app.post("/register-hospital", (req, res) => {
     map_link,
     bloodTypes,
   } = req.body;
+  const image = req.file ? req.file.path : null;
 
   if (!name || !address || !city || !state || !country) {
     return res.status(400).json({
@@ -79,7 +98,7 @@ app.post("/register-hospital", (req, res) => {
     });
   }
 
-  const query = `INSERT INTO hospitals (name, address, city, state, country, latitude, longitude, map_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+  const query = `INSERT INTO hospitals (name, address, city, state, country, latitude, longitude, map_link, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   db.run(
     query,
     [
@@ -91,6 +110,7 @@ app.post("/register-hospital", (req, res) => {
       latitude || null,
       longitude || null,
       map_link || null,
+      image,
     ],
     function (err) {
       if (err) {
@@ -99,15 +119,20 @@ app.post("/register-hospital", (req, res) => {
 
       const hospital_id = this.lastID;
 
-      if (bloodTypes && Array.isArray(bloodTypes) && bloodTypes.length > 0) {
-        const insertBloodType = `INSERT INTO blood_types (hospital_id, type, quantity) VALUES (?, ?, ?)`;
-        bloodTypes.forEach(({ type, quantity }) => {
-          db.run(insertBloodType, [hospital_id, type, quantity], (err) => {
-            if (err) {
-              console.error("❌ Error inserting blood type:", err.message);
-            }
+      try {
+        const parsedBloodTypes = JSON.parse(bloodTypes);
+        if (Array.isArray(parsedBloodTypes)) {
+          const insertBloodType = `INSERT INTO blood_types (hospital_id, type, quantity) VALUES (?, ?, ?)`;
+          parsedBloodTypes.forEach(({ type, quantity }) => {
+            db.run(insertBloodType, [hospital_id, type, quantity], (err) => {
+              if (err) {
+                console.error("❌ Error inserting blood type:", err.message);
+              }
+            });
           });
-        });
+        }
+      } catch (e) {
+        console.error("❌ Invalid bloodTypes JSON:", e.message);
       }
 
       res.json({
@@ -122,7 +147,7 @@ app.post("/register-hospital", (req, res) => {
 // ✅ API to get available blood types
 app.get("/available-bloods", (req, res) => {
   const query = `
-    SELECT bt.type, bt.quantity, h.name AS hospital_name, h.city, h.state, h.country
+    SELECT bt.type, bt.quantity, h.name AS hospital_name, h.city, h.state, h.country, h.image
     FROM blood_types bt
     JOIN hospitals h ON bt.hospital_id = h.id
   `;
