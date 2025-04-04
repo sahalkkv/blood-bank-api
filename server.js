@@ -164,9 +164,20 @@ app.post("/register-hospital", upload.single("image"), (req, res) => {
 
 // ✅ API to get available blood types
 app.get("/available-bloods", (req, res) => {
-  res.json({
-    success: true,
-    data: rows.map((row) => ({
+  const query = `
+    SELECT bt.type, bt.quantity, h.name AS hospital_name, h.city, h.state, h.country, h.image
+    FROM blood_types bt
+    JOIN hospitals h ON bt.hospital_id = h.id
+  `;
+
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error("❌ Error in /available-bloods:", err.message);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+
+    // Convert image path to full URL
+    const updatedRows = rows.map((row) => ({
       ...row,
       image: row.image
         ? `${req.protocol}://${req.get("host")}/${row.image.replace(
@@ -174,18 +185,23 @@ app.get("/available-bloods", (req, res) => {
             "/"
           )}`
         : null,
-    })),
-  });
-
-  db.all(query, [], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
+    }));
 
     res.json({
       success: true,
-      data: rows,
+      data: updatedRows,
     });
+  });
+});
+
+db.all(query, [], (err, rows) => {
+  if (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+
+  res.json({
+    success: true,
+    data: rows,
   });
 });
 
