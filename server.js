@@ -165,7 +165,7 @@ app.post("/register-hospital", upload.single("image"), (req, res) => {
 // ✅ API to get available blood types
 app.get("/available-bloods", (req, res) => {
   const query = `
-    SELECT bt.type, bt.quantity,h.id AS hospital_id, h.name AS hospital_name, h.city, h.state, h.country, h.image
+    SELECT bt.type, bt.quantity, h.name AS hospital_name, h.city, h.state, h.country, h.image
     FROM blood_types bt
     JOIN hospitals h ON bt.hospital_id = h.id
   `;
@@ -178,6 +178,44 @@ app.get("/available-bloods", (req, res) => {
     res.json({
       success: true,
       data: rows,
+    });
+  });
+});
+
+// ✅ API to get hospitals by blood type
+app.get("/hospital-by-blood", (req, res) => {
+  const { type } = req.query;
+
+  if (!type) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Blood type is required." });
+  }
+
+  const query = `
+    SELECT h.*
+    FROM blood_types bt
+    JOIN hospitals h ON bt.hospital_id = h.id
+    WHERE bt.type = ?
+    ORDER BY bt.quantity DESC
+    LIMIT 1
+  `;
+
+  db.get(query, [type], (err, row) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+
+    if (!row) {
+      return res.status(404).json({
+        success: false,
+        message: "No hospital found for this blood type.",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: row,
     });
   });
 });
@@ -210,3 +248,7 @@ app.post("/request-blood", (req, res) => {
 app.listen(PORT, HOST, () => {
   console.log(`✅ Server running at http://${HOST}:${PORT}`);
 });
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git push -u origin main
