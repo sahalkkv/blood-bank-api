@@ -230,10 +230,25 @@ app.post("/request-blood", (req, res) => {
       return res.status(500).json({ success: false, message: err.message });
     }
 
-    return res.json({
-      success: true,
-      message: "Blood request submitted successfully.",
-      request_id: this.lastID,
+    const request_id = this.lastID;
+
+    const fetchHospitalQuery = `SELECT name, city, state, country, map_link FROM hospitals WHERE id = ?`;
+    db.get(fetchHospitalQuery, [hospital_id], (err, hospital) => {
+      if (err || !hospital) {
+        return res.status(500).json({
+          success: false,
+          message: "Request submitted, but failed to fetch hospital details.",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Blood request submitted successfully.",
+        request_id,
+        hospital_name: hospital.name,
+        location: `${hospital.city}, ${hospital.state}, ${hospital.country}`,
+        map_link: hospital.map_link,
+      });
     });
   });
 });
