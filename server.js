@@ -164,11 +164,18 @@ app.post("/register-hospital", upload.single("image"), (req, res) => {
 
 // ✅ API to get available blood types
 app.get("/available-bloods", (req, res) => {
-  const query = `
-    SELECT bt.type, bt.quantity, h.name AS hospital_name, h.city, h.state, h.country, h.image
-    FROM blood_types bt
-    JOIN hospitals h ON bt.hospital_id = h.id
-  `;
+  res.json({
+    success: true,
+    data: rows.map((row) => ({
+      ...row,
+      image: row.image
+        ? `${req.protocol}://${req.get("host")}/${row.image.replace(
+            /\\/g,
+            "/"
+          )}`
+        : null,
+    })),
+  });
 
   db.all(query, [], (err, rows) => {
     if (err) {
@@ -248,7 +255,3 @@ app.post("/request-blood", (req, res) => {
 app.listen(PORT, HOST, () => {
   console.log(`✅ Server running at http://${HOST}:${PORT}`);
 });
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git push -u origin main
