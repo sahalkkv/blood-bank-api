@@ -201,10 +201,12 @@ app.get("/hospital-by-blood", (req, res) => {
     }
 
     if (!row) {
-      return res.status(404).json({
-        success: false,
-        message: "No hospital found for this blood type.",
-      });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message: "No hospital found for this blood type.",
+        });
     }
 
     res.json({
@@ -213,6 +215,7 @@ app.get("/hospital-by-blood", (req, res) => {
     });
   });
 });
+
 
 // ✅ API to request blood from a specific hospital
 app.post("/request-blood", (req, res) => {
