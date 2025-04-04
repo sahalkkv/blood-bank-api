@@ -159,10 +159,10 @@ app.post("/register-hospital", upload.single("image"), (req, res) => {
 // ✅ API to get available blood types
 app.get("/available-bloods", (req, res) => {
   const query = `
-    SELECT bt.type, bt.quantity, h.name AS hospital_name, h.city, h.state, h.country, h.image
-    FROM blood_types bt
-    JOIN hospitals h ON bt.hospital_id = h.id
-  `;
+  SELECT bt.hospital_id, bt.type, bt.quantity, h.name AS hospital_name, h.city, h.state, h.country, h.image
+  FROM blood_types bt
+  JOIN hospitals h ON bt.hospital_id = h.id
+`;
 
   db.all(query, [], (err, rows) => {
     if (err) {
@@ -201,12 +201,10 @@ app.get("/hospital-by-blood", (req, res) => {
     }
 
     if (!row) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "No hospital found for this blood type.",
-        });
+      return res.status(404).json({
+        success: false,
+        message: "No hospital found for this blood type.",
+      });
     }
 
     res.json({
@@ -215,7 +213,6 @@ app.get("/hospital-by-blood", (req, res) => {
     });
   });
 });
-
 
 // ✅ API to request blood from a specific hospital
 app.post("/request-blood", (req, res) => {
