@@ -96,17 +96,9 @@ const db = new sqlite3.Database("./blood_bank.db", (err) => {
 
 // ✅ API to register a new hospital
 app.post("/register-hospital", upload.single("image"), (req, res) => {
-  const {
-    name,
-    address,
-    city,
-    state,
-    country,
-    latitude,
-    longitude,
-    map_link,
-    bloodTypes,
-  } = req.body;
+  const { name, address, city, state, country, latitude, longitude, map_link } =
+    req.body;
+  const bloodTypes = req.body.bloodTypes || "[]";
   const image = req.file ? req.file.path : null;
 
   if (!name || !address || !city || !state || !country) {
@@ -142,11 +134,13 @@ app.post("/register-hospital", upload.single("image"), (req, res) => {
         if (Array.isArray(parsedBloodTypes)) {
           const insertBloodType = `INSERT INTO blood_types (hospital_id, type, quantity) VALUES (?, ?, ?)`;
           parsedBloodTypes.forEach(({ type, quantity }) => {
-            db.run(insertBloodType, [hospital_id, type, quantity], (err) => {
-              if (err) {
-                console.error("❌ Error inserting blood type:", err.message);
-              }
-            });
+            if (type && quantity != null) {
+              db.run(insertBloodType, [hospital_id, type, quantity], (err) => {
+                if (err) {
+                  console.error("❌ Error inserting blood type:", err.message);
+                }
+              });
+            }
           });
         }
       } catch (e) {
@@ -172,36 +166,13 @@ app.get("/available-bloods", (req, res) => {
 
   db.all(query, [], (err, rows) => {
     if (err) {
-      console.error("❌ Error in /available-bloods:", err.message);
       return res.status(500).json({ success: false, message: err.message });
     }
 
-    // Convert image path to full URL
-    const updatedRows = rows.map((row) => ({
-      ...row,
-      image: row.image
-        ? `${req.protocol}://${req.get("host")}/${row.image.replace(
-            /\\/g,
-            "/"
-          )}`
-        : null,
-    }));
-
     res.json({
       success: true,
-      data: updatedRows,
+      data: rows,
     });
-  });
-});
-
-db.all(query, [], (err, rows) => {
-  if (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-
-  res.json({
-    success: true,
-    data: rows,
   });
 });
 
