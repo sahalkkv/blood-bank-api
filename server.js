@@ -144,7 +144,8 @@ app.post("/register-hospital", upload.single("image"), (req, res) => {
 });
 
 app.get("/available-bloods", (req, res) => {
-  const query = `SELECT bt.type, bt.quantity, h.name AS hospital_name, h.city, h.state, h.country, h.image FROM blood_types bt JOIN hospitals h ON bt.hospital_id = h.id`;
+  const query = `SELECT bt.type, bt.quantity, h.id AS hospital_id, h.name AS hospital_name, h.city, h.state, h.country, h.image, h.map_link FROM blood_types bt JOIN hospitals h ON bt.hospital_id = h.id`;
+
   db.all(query, [], (err, rows) => {
     if (err) {
       return res.status(500).json({ success: false, message: err.message });
