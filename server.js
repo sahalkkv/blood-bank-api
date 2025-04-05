@@ -155,7 +155,22 @@ app.post("/register-hospital", upload.single("image"), (req, res) => {
 });
 
 app.get("/available-bloods", (req, res) => {
-  const query = `SELECT bt.type, bt.quantity, h.name AS hospital_name, h.city, h.state, h.country, h.image, h.department FROM blood_types bt JOIN hospitals h ON bt.hospital_id = h.id`;
+  const query = `
+    SELECT 
+      bt.hospital_id AS hospital_id,
+      bt.type, 
+      bt.quantity, 
+      h.name AS hospital_name, 
+      h.city, 
+      h.state, 
+      h.country, 
+      h.image, 
+      h.department, 
+      h.map_link 
+    FROM blood_types bt 
+    JOIN hospitals h ON bt.hospital_id = h.id
+  `;
+
   db.all(query, [], (err, rows) => {
     if (err) {
       return res.status(500).json({ success: false, message: err.message });
@@ -228,6 +243,79 @@ app.post("/request-blood", (req, res) => {
       });
     });
   });
+});
+
+app.get("/hospitals", (req, res) => {
+  const query = `SELECT * FROM hospitals`;
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+    res.json({ success: true, data: rows });
+  });
+});
+
+app.get("/hospital-details/:id", (req, res) => {
+  const hospitalId = req.params.id;
+
+  const hospitalQuery = `SELECT * FROM hospitals WHERE id = ?`;
+  const bloodQuery = `SELECT type, quantity FROM blood_types WHERE hospital_id = ?`;
+
+  db.get(hospitalQuery, [hospitalId], (err, hospital) => {
+    if (err) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to fetch hospital." });
+    }
+
+    if (!hospital) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Hospital not found." });
+    }
+
+    db.all(bloodQuery, [hospitalId], (err, bloodTypes) => {
+      if (err) {
+        return res
+          .status(500)
+          .json({ success: false, message: "Failed to fetch blood types." });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          ...hospital,
+          blood_types: bloodTypes,
+          image_url: hospital.image
+            ? `${req.protocol}://${req.get("host")}/${hospital.image}`
+            : null,
+        },
+      });
+    });
+  });
+});
+
+app.get("/search-hospitals", (req, res) => {
+  const { query } = req.query;
+  if (!query) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Search query is required." });
+  }
+
+  const sql = `SELECT * FROM hospitals WHERE name LIKE ? OR city LIKE ? OR state LIKE ? OR country LIKE ? OR address LIKE ? OR department LIKE ?`;
+  const searchTerm = `%${query}%`;
+
+  db.all(
+    sql,
+    [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ success: false, message: err.message });
+      }
+      res.json({ success: true, data: rows });
+    }
+  );
 });
 
 app.listen(PORT, HOST, () => {
